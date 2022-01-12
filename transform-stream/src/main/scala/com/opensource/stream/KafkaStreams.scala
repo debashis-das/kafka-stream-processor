@@ -38,6 +38,8 @@ object KafkaStreams {
     val Orders = "orders"
     val Payments = "payments"
     val PaidOrders = "paid-orders"
+    val testStream = "test-stream"
+    val expensiveOrdersStream = "expensive-orders-stream"
   }
 
   // source = emit elements
@@ -79,28 +81,30 @@ object KafkaStreams {
 
     val productsStream = usersOrdersStream.flatMapValues(_.products)
 
-    // join
-    val ordersWithUserProfiles = usersOrdersStream.join(userPofilesTable) { (order, profile) =>
-      (order, profile)
-    }
-
-    val discountedOrdersStream = ordersWithUserProfiles.join(discountProfilesGTable) (
-      { case (userId, (order, profile)) => profile },
-      { case ((order, profile), discount) => order.copy(amount = order.amount - discount.amount)}
-    )
-
-    // pick another identifier
-    val ordersStream = discountedOrdersStream.selectKey((userId, order) => order.orderId)
-    val paymentsStream = builder.stream[OrderId, Payment](Payments)
-
-    val joinWindow = JoinWindows.of(Duration.of(5, ChronoUnit.MINUTES))
-    val joinOrderPayments = (order:Order, payment: Payment) => if (payment.status == "PAID") Option(order) else Option.empty[Order]
-
-    val ordersPaid = ordersStream.join(paymentsStream)(joinOrderPayments, joinWindow)
-      .flatMapValues(maybeOrder => maybeOrder.toIterable)
-
-    //sink
-    ordersPaid.to(PaidOrders)
+    //    // join
+    //    val ordersWithUserProfiles = usersOrdersStream.join(userPofilesTable) { (order, profile) =>
+    //      (order, profile)
+    //    }
+    //
+    //    val discountedOrdersStream = ordersWithUserProfiles.join(discountProfilesGTable) (
+    //      { case (userId, (order, profile)) => profile },
+    //      { case ((order, profile), discount) => order.copy(amount = order.amount - discount.amount)}
+    //    )
+    //
+    //    // pick another identifier
+    //    val ordersStream = discountedOrdersStream.selectKey((userId, order) => order.orderId)
+    //    val paymentsStream = builder.stream[OrderId, Payment](Payments)
+    //
+    //    val joinWindow = JoinWindows.of(Duration.of(5, ChronoUnit.MINUTES))
+    //    val joinOrderPayments = (order:Order, payment: Payment) => if (payment.status == "PAID") Option(order) else Option.empty[Order]
+    //
+    //    val ordersPaid = ordersStream.join(paymentsStream)(joinOrderPayments, joinWindow)
+    //      .flatMapValues(maybeOrder => maybeOrder.toIterable)
+    //
+    //    //sink
+    //    ordersPaid.to(PaidOrders)
+    expensiveOrders.to(expensiveOrdersStream)
+    productsStream.to(testStream)
 
     val topology = builder.build()
 
@@ -109,7 +113,7 @@ object KafkaStreams {
     props.put(StreamsConfig.BOOTSTRAP_SERVERS_CONFIG, "localhost:9092")
     props.put(StreamsConfig.DEFAULT_KEY_SERDE_CLASS_CONFIG, Serdes.stringSerde.getClass)
 
-//    println(topology.describe())
+    //    println(topology.describe())
     val application = new KafkaStreams(topology, props)
     application.start()
     println("Application Started !!!")
